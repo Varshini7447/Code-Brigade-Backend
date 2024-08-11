@@ -91,23 +91,54 @@ app.post('/insert', async(req, res) => {
     .catch((e)=>console.log(e))
 })
 
-app.get('/login', async(req, res) => {
-    const user = await db.collection("ast").findOne(req.body.Email)
+app.post('/signin', async(req, res) => {
+    console.log(req.body.Email)
+    const user = await db.collection("ast").findOne({Email:req.body.Email})
+    console.log(user)
+    if(user.Password === req.body.password) {
+        res.json({ message: "Login Successful", values: user})
+    } else {
+        res.json("Password Incorrect")
+    }
+})
+app.post('/signup', async(req, res) => {
+    await db.collection("ast").insertOne({Email:req.body.Email,Password:req.body.Password,firstName:req.body.firstName,lastName:req.body.lastName})
     .then((result)=>{
-        if(result) {
-            if(user.Password === req.body.Password) {
-                res.json("Loggin successful")
-            } else {
-                res.json("Password Incorrect")
-            }
-        } else {
-            res.json("user not found")
+        if(result){
+            res.json("registered successfully")
+        }else{
+            res.json("fill the data")
         }
     })
     .catch((e)=>console.log(e))
 })
+app.post('/forgot', async(req, res) => {
+    const user = await db.collection("ast").findOne({Email:req.body.Email})
+    console.log(user)
+    if(user.Email===req.body.Email)
+    {
+        await db.collection("ast").updateOne({ Email: req.body.Email },{ $set:{ Password:req.body.NewPassword}})
+        .then((result) => {
+            if(result) {
+                res.json("Update success")
+            } else {
+                res.json("Failure")
+            }
+        })
+        .catch((e)=>console.log(e))
+    }
+    else{
+            res.json("password doesn't match")
+    }
 
-
+})
+app.post('/students',async(req,res)=>{
+    await db.collection("ast").find().toArray()
+    .then((result)=>{
+        res.json(result)
+    })
+    .catch((e)=>console.log(e))
+})
 
 connectToDB(() => {
     app.listen(9000, () => {
