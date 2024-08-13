@@ -95,14 +95,18 @@ app.post('/signin', async(req, res) => {
     console.log(req.body.Email)
     const user = await db.collection("ast").findOne({Email:req.body.Email})
     console.log(user)
-    if(user.Password === req.body.password) {
-        res.json({ message: "Login Successful", values: user})
+    if(user) {
+        if(user.Password === req.body.Password) {
+            res.json({ message: "Login Successful", values: user})
+        } else {
+            res.json("Password Incorrect")
+        }
     } else {
-        res.json("Password Incorrect")
+        res.json("user not found")
     }
 })
 app.post('/signup', async(req, res) => {
-    await db.collection("ast").insertOne({Email:req.body.Email,Password:req.body.Password,firstName:req.body.firstName,lastName:req.body.lastName})
+    await db.collection("ast").insertOne({Email:req.body.Email,Password:req.body.Password,firstName:req.body.firstName,lastName:req.body.lastName,Gender:req.body.Gender})
     .then((result)=>{
         if(result){
             res.json("registered successfully")
@@ -120,7 +124,7 @@ app.post('/forgot', async(req, res) => {
         await db.collection("ast").updateOne({ Email: req.body.Email },{ $set:{ Password:req.body.NewPassword}})
         .then((result) => {
             if(result) {
-                res.json("Update success")
+                res.json({ message:"Update success" })
             } else {
                 res.json("Failure")
             }
@@ -139,6 +143,7 @@ app.post('/students',async(req,res)=>{
     })
     .catch((e)=>console.log(e))
 })
+
 
 connectToDB(() => {
     app.listen(9000, () => {
