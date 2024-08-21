@@ -1,87 +1,22 @@
-// import http from 'http'
 
-// const port = 3000;
-
-// const server = http.createServer((req, res) => {
-//     if (req.url === '/myself'){
-//     res.statusCode = 200
-//     res.setHeader("Content-Type", "text/plain");
-//     res.write("My team name is AST team\n")
-//     res.write("what are you doing\n")
-//     res.end()
-//     }
-
-//     else if (req.url === '/html') {
-//         res.statusCode = 200
-//         res.setHeader("Content-Type", "text/html");
-//         res.write("my name is teja\n")
-//         res.write("<h1>Hello darlings....</h1>")
-//         res.end()
-//     }
-
-//     else if (req.method === 'GET' && req.url === '/recivedata') {
-//         res.statusCode = 200
-//         res.setHeader("Content-Type", "application/json");
-//         let body = "";
-//         req.on("data", (chunk) => {
-//             body += chunk.toString();
-//         });
-//         console.log(body)
-//         res.end()
-//     } 
-
-//     else if (req.url === '/senddata') {
-//         res.statusCode = 200
-//         res.setHeader("Content-Type", "application/json");
-//         const data = { Name: "Teja", Branch: "cse" }
-//         res.end(JSON.stringify(data))
-//     }
-
-//     else {
-//         res.statusCode = 400
-//         res.end("Page Not Found\n")
-//     }
-// });
-
-// server.listen(port, () => {
-//     console.log(`Server running at ${port}` );
-// });
 import cors from 'cors';
 import express from 'express';
+import bodyParser from 'body-parser';
 import { connectToDB,db } from "./db.js";
-
+import { MongoClient } from 'mongodb';
+const url = 'mongodb://localhost:27017';
+const dbName = 'Code_brigade';
 const app = express()
+app.use(bodyParser.json());
+app.use(cors());
+
+
 app.use(cors())
 app.use(express.json())
 
 app.get('/', (req, res) => {
     res.json("Hey vijaya your server is running successfully!....");
 })
-// app.get('/', async(req, res) => {
-//     console.log("")
-//     res.json("Hey vijaya your server is running successfully!....");
-// })
-// app.post('/', (req, res) => {
-//     res.json("Hey vijaya your server is running successfully!....");
-// })
-// app.post('/insert', async(req, res) => {
-//     await db.collection("ast").insertOne({Name:req.body.Name,Branch:req.body.Branch})
-//     .then((result)=>{
-//         res.json(result)
-//     })
-//     .catch((e)=>console.log(e))
-// })
-
-
-// app.post('/insertMany', async(req, res) => {
-//     await db.collection("ast").insertMany(req.body)
-//     .then((result)=>{
-//         res.json(result)
-//     })
-//     .catch((e)=>console.log(e))
-// })
-
-
 
 app.post('/insert', async(req, res) => {
     await db.collection("ast").insertOne({Email:req.body.Email,Password:req.body.Password})
@@ -136,17 +71,105 @@ app.post('/forgot', async(req, res) => {
     }
 
 })
-app.post('/students',async(req,res)=>{
+app.post('/data',async(req,res)=>{
     await db.collection("ast").find().toArray()
     .then((result)=>{
         res.json(result)
     })
     .catch((e)=>console.log(e))
 })
+MongoClient.connect(url, { useUnifiedTopology: true })
+  .then(client => {
+    const db = client.db(dbName);
+    const collection = db.collection('calories');
+
+    app.get('/api/food-items', async (req, res) => {
+      try {
+        const foodItems = await collection.find({}).toArray();
+        res.json(foodItems);
+      } catch (error) {
+        console.error('Error fetching food items:', error);
+        res.status(500).json({ error: 'An error occurred' });
+      }
+    });
+
+    app.post('/api/store-calories', async (req, res) => {
+      const { totalCalories } = req.body;
+      const today = new Date().toISOString().split('T')[0]; 
+      try {
+        await collection.updateOne(
+          { date: today },
+          { $set: { totalCalories } },
+          { upsert: true }
+        );
+        res.status(200).json({ message: 'Your today\'s calorie intake is stored successfully.' });
+      } catch (error) {
+        console.error('Error storing calorie intake:', error);
+        res.status(500).json({ error: 'An error occurred' });
+      }
+    });
+
+    app.get('/api/daily-calories', async (req, res) => {
+      const today = new Date();
+      const sevenDaysAgo = new Date(today);
+      sevenDaysAgo.setDate(today.getDate() - 7);
+
+      try {
+        const dailyCalories = await collection
+          .find({ date: { $gte: sevenDaysAgo.toISOString().split('T')[0] } })
+          .sort({ date: 1 })
+          .toArray();
+        res.json(dailyCalories);
+      } catch (error) {
+        console.error('Error fetching daily calorie data:', error);
+        res.status(500).json({ error: 'An error occurred' });
+      }
+    });
+
+    app.get('/api/weekly-calories', async (req, res) => {
+      const today = new Date();
+      const oneMonthAgo = new Date(today);
+      oneMonthAgo.setMonth(today.getMonth() - 1);
+
+      try {
+        const weeklyCalories = await collection
+          .aggregate([
+            { $match: { date: { $gte: oneMonthAgo.toISOString().split('T')[0] } } },
+            { $group: { _id: { $substr: ['$date', 0, 7] }, totalCalories: { $sum: '$totalCalories' } } },
+            { $sort: { '_id': 1 } }
+          ])
+          .toArray();
+        res.json(weeklyCalories);
+      } catch (error) {
+        console.error('Error fetching weekly calorie data:', error);
+        res.status(500).json({ error: 'An error occurred' });
+      }
+    });
+
+    app.get('/api/monthly-calories', async (req, res) => {
+      const today = new Date();
+      const oneYearAgo = new Date(today);
+      oneYearAgo.setFullYear(today.getFullYear() - 1);
+
+      try {
+        const monthlyCalories = await collection
+          .aggregate([
+            { $match: { date: { $gte: oneYearAgo.toISOString().split('T')[0] } } },
+            { $group: { _id: { $substr: ['$date', 0, 7] }, totalCalories: { $sum: '$totalCalories' } } },
+            { $sort: { '_id': 1 } }
+          ])
+          .toArray();
+        res.json(monthlyCalories);
+      } catch (error) {
+        console.error('Error fetching monthly calorie data:', error);
+        res.status(500).json({ error: 'An error occurred' });
+      }
+    });
 
 
 connectToDB(() => {
     app.listen(9000, () => {
         console.log("server running at 9000");
     })
+})
 })
